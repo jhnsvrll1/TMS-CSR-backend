@@ -1,0 +1,186 @@
+const pool = require('../config/db');
+const getQuestions = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                s.id AS section_id,
+                s.title AS section_name,
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'sub_section_name', sub.sub_section,
+                            'questions', sub.questions_list
+                        )
+                    )
+                    FROM (
+                        -- Kelompokkan pertanyaan berdasarkan Sub-Section
+                        SELECT 
+                            COALESCE(q.sub_section, 'General') as sub_section, -- Handle jika sub_section kosong
+                            json_agg(
+                                json_build_object(
+                                    'id', q.id,
+                                    'text', q.question_text,
+                                    'options', (
+                                        -- Ambil Opsi Jawaban
+                                        SELECT json_agg(
+                                            json_build_object(
+                                                'id', o.id,
+                                                'label', o.option_text,
+                                                'score', o.score_value
+                                            )
+                                        ) FROM assessment_options o WHERE o.question_id = q.id
+                                    )
+                                ) ORDER BY q.id ASC
+                            ) AS questions_list
+                        FROM assessment_questions q
+                        WHERE q.section_id = s.id
+                        GROUP BY q.sub_section
+                    ) sub
+                ) AS sub_sections
+            FROM assessment_sections s
+            ORDER BY s.id ASC;
+        `;
+
+        const result = await pool.query(query);
+        
+        res.json({
+            success: true,
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error('Error getQuestions:', error);
+        res.status(500).json({ success: false, error: 'Gagal mengambil data soal.' });
+    }
+};
+
+const submitAssessment = async (req, res) => {
+    const client = await pool.connect(); 
+    try {
+        const { business_profile_id, answers } = req.body;
+
+        if (!business_profile_id || !answers) {
+            return res.status(400).json({ error: 'Data tidak lengkap' });
+        }
+
+        await client.query('BEGIN'); 
+
+
+        const resultHeader = await client.query(
+            `INSERT INTO assessment_results (business_profile_id, total_score, status) 
+             VALUES ($1, 0, 'Pending') RETURNING id`,
+            [business_profile_id]
+        );
+        const resultId = resultHeader.rows[0].id;
+        const answerEntries = Object.entries(answers); 
+        
+        for (const [questionId, optionId] of answerEntries) {
+            await client.query(
+                `INSERT INTO assessment_answers (assessment_result_id, question_id, selected_option_id)
+                 VALUES ($1, $2, $3)`,
+                [resultId, questionId, optionId]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        res.status(201).json({
+            success: true,
+            message: 'Assessment berhasil disimpan!',
+            resultId: resultId 
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK'); 
+        console.error('Error submitAssessment:', error);
+        res.status(500).json({ success: false, error: 'Gagal menyimpan jawaban.' });
+    } finally {
+        client.release();
+    }
+};
+
+const getAssessmentResult = async (req, res) => {
+    try {
+        const { resultId } = req.params;
+
+        const query = `
+            SELECT 
+                s.title AS section_name,
+                
+                -- Skor User Saat Ini
+                COALESCE(SUM(opt.score_value), 0) AS current_score,
+                
+                -- Skor Maksimal (Jika user jawab bener semua)
+                (
+                    SELECT SUM(MAX(score_value))
+                    FROM assessment_options ao
+                    JOIN assessment_questions aq ON ao.question_id = aq.id
+                    WHERE aq.section_id = s.id
+                    GROUP BY aq.id
+                ) AS max_score,
+
+                -- Jumlah Soal Terjawab vs Total Soal
+                COUNT(ans.id) AS answered_count,
+                (SELECT COUNT(*) FROM assessment_questions WHERE section_id = s.id) AS total_questions
+
+            FROM assessment_sections s
+            LEFT JOIN assessment_questions q ON s.id = q.section_id
+            -- Join ke jawaban user berdasarkan Result ID tertentu
+            LEFT JOIN assessment_answers ans ON q.id = ans.question_id AND ans.assessment_result_id = $1
+            LEFT JOIN assessment_options opt ON ans.selected_option_id = opt.id
+            GROUP BY s.id, s.title
+            ORDER BY s.id ASC;
+        `;
+
+        const result = await pool.query(query, [resultId]);
+
+        let totalUserScore = 0;
+        let totalMaxScore = 0;
+
+        const sectionsData = result.rows.map(row => {
+            const current = parseInt(row.current_score);
+            const max = parseInt(row.max_score);
+            
+            totalUserScore += current;
+            totalMaxScore += max;
+
+            const percentage = max > 0 ? Math.round((current / max) * 100) : 0;
+            
+            let status = 'Perlu Perbaikan';
+            if (percentage >= 85) status = 'Sangat Baik';
+            else if (percentage >= 70) status = 'Baik';
+            else if (percentage >= 50) status = 'Cukup';
+
+            return {
+                ...row,
+                percentage,
+                status_label: status
+            };
+        });
+
+        const finalPercentage = totalMaxScore > 0 ? Math.round((totalUserScore / totalMaxScore) * 100) : 0;
+        let finalStatus = 'Perlu Perbaikan';
+        if (finalPercentage >= 85) finalStatus = 'Sangat Baik';
+        else if (finalPercentage >= 70) finalStatus = 'Baik';
+        else if (finalPercentage >= 50) finalStatus = 'Cukup';
+
+        res.json({
+            success: true,
+            data: {
+                summary: {
+                    total_score: totalUserScore,
+                    max_score: totalMaxScore,
+                    final_percentage: finalPercentage,
+                    final_status: finalStatus
+                },
+                sections: sectionsData
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getAssessmentResult:', error);
+        res.status(500).json({ success: false, error: 'Gagal menghitung hasil.' });
+    }
+};
+
+module.exports = { getQuestions, submitAssessment, getAssessmentResult };
