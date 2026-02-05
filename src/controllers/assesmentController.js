@@ -13,7 +13,6 @@ const getQuestions = async (req, res) => {
                         )
                     )
                     FROM (
-                        -- Kelompokkan pertanyaan berdasarkan Sub-Section
                         SELECT 
                             COALESCE(q.sub_section, 'General') as sub_section, -- Handle jika sub_section kosong
                             json_agg(
@@ -107,10 +106,7 @@ const getAssessmentResult = async (req, res) => {
             SELECT 
                 s.title AS section_name,
                 
-                -- Skor User Saat Ini
                 COALESCE(SUM(opt.score_value), 0) AS current_score,
-                
-                -- Skor Maksimal (Jika user jawab bener semua)
                 (
                     SELECT SUM(MAX(score_value))
                     FROM assessment_options ao
@@ -118,8 +114,6 @@ const getAssessmentResult = async (req, res) => {
                     WHERE aq.section_id = s.id
                     GROUP BY aq.id
                 ) AS max_score,
-
-                -- Jumlah Soal Terjawab vs Total Soal
                 COUNT(ans.id) AS answered_count,
                 (SELECT COUNT(*) FROM assessment_questions WHERE section_id = s.id) AS total_questions
 
