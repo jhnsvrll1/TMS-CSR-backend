@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS assesment_results
+SELECT * FROM business_profiles
