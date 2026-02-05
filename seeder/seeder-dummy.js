@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({path: '../.env'});
 const { Pool } = require('pg');
 
 console.log ('target db : ', process.env.DB_NAME)

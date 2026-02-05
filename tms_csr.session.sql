@@ -1,1 +1,1 @@
-SELECT * FROM business_profiles
+SELECT * FROM assessment_results
