@@ -1,13 +1,15 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
+console.log ('target db : ', process.env.DB_NAME)
+
 
 const pool = new Pool ({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
-    database: process.env.BD_NAME
+    database: process.env.DB_NAME
 });
 
 
@@ -108,7 +110,7 @@ const seedData = async () => {
     await client.query('BEGIN');
 
     console.log('truncate old db');
-    await client.query('TRUNCATE TABLE assesment_options, assesment_questions, assesment_sections RESTART IDENTITY CASCADE');
+    await client.query('TRUNCATE TABLE assessment_options, assessment_questions, assessment_sections RESTART IDENTITY CASCADE');
 
     let totalQuestionCreated = 0;
     let globalSubIndex = 0;
@@ -122,8 +124,8 @@ const seedData = async () => {
     for (const group of DATA_STRUCTURE) {
 
         const resSec = await client.query(
-            `INSERT INTO assesment_sections (title, description)
-            VALUES ($1, $2) RETURNING id`
+            `INSERT INTO assessment_sections (title, description)
+            VALUES ($1, $2) RETURNING id`,
             [group.section, `Aspek Penilaian untuk ${group.section}`]
         );
 
@@ -138,7 +140,7 @@ const seedData = async () => {
                 const questionText = `[${subName} Bagaimana evaluasi indikator kinerja poin ke-${i} pada aspek ini?]`;
 
                 const resQ = await client.query(
-                    `INSERT INTO assesment_questions (section_id, sub_section, question_text)
+                    `INSERT INTO assessment_questions (section_id, sub_section, question_text)
                     VALUES ($1, $2, $3) RETURNING id`,
                     [sectionID, subName, questionText]
                 );
@@ -155,7 +157,7 @@ const seedData = async () => {
 
                 for (const opt of options) {
                     await client.query(
-                        `INSERT INTO assesment_options (question_id, option_text, score_value)
+                        `INSERT INTO assessment_options (question_id, option_text, score_value)
                         VALUES ($1, $2, $3)`,
                         [qID, opt.text, opt.score]
                     );

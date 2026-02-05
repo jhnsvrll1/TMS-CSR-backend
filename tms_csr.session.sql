@@ -1,1 +1,1 @@
-SELECT * from assesment_sections
+DROP TABLE IF EXISTS assesment_results
