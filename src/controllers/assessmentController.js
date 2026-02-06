@@ -189,4 +189,31 @@ const getAssessmentResult = async (req, res) => {
     }
 };
 
-module.exports = { getQuestions, submitAssessment, getAssessmentResult };
+
+   const getAllResult = async (req, res) => {
+        try {
+            const query = `
+                SELECT 
+                    r.id,
+                    b.nama_umkm AS company_name,
+                    r.total_score,
+                    r.status,
+                    r.created_at
+                FROM assessment_results r
+                JOIN business_profiles b ON r.business_profile_id = b.id
+                ORDER BY r.created_at DESC
+            `;
+
+            const result = await pool.query(query);
+
+            res.json({
+                success: true,
+                data: result.rows
+            });
+        }catch (error){
+            console.error('ERROR getAllResults', error);
+            res.status(500).json({success:false, error: 'failed retrieving dashboard data'});
+        }
+    };
+
+module.exports = { getQuestions, submitAssessment, getAssessmentResult, getAllResult};

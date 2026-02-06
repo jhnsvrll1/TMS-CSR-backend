@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const businessRoutes = require('./src/routes/business-routes');
-const assesmentRoutes = require('./src/routes/assesment-routes');
+const assesmentRoutes = require('./src/routes/assessment-routes');
 const cors = require('cors');
 const pool = require ('./src/config/db');
 
