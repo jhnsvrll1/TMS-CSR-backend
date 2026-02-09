@@ -1,5 +1,16 @@
 const pool = require('../config/db');
 
+const provinceList = [
+  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Jambi", 
+  "Sumatera Selatan", "Bengkulu", "Lampung", "Kepulauan Bangka Belitung", "Kepulauan Riau",
+  "DKI Jakarta", "Jawa Barat", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur", "Banten",
+  "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+  "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+  "Sulawesi Utara", "Sulawesi Tengah", "Sulawesi Selatan", "Sulawesi Tenggara", "Gorontalo", "Sulawesi Barat",
+  "Maluku", "Maluku Utara",
+  "Papua Barat", "Papua", "Papua Tengah", "Papua Pegunungan", "Papua Selatan", "Papua Barat Daya"
+];
+
 const createBusinessProfile = async (req, res) => {
     try {
         const {
@@ -45,4 +56,21 @@ const createBusinessProfile = async (req, res) => {
     }
 }
 
-module.exports = {createBusinessProfile};
+const gerProvince = async (req, res) => {
+    try {
+        const formattedData = provinceList.map((prov,index) => ({
+            id: index + 1,
+            name: prov
+        }));
+
+        res.json({
+            success: true,
+            data: formattedData
+        });
+    }catch (error) {
+        consolo.error('Error getProvince: ', error);
+        res.status(500).json({success: false, error: 'fail retrieving province data!'});
+    }
+}
+
+module.exports = {createBusinessProfile, gerProvince};

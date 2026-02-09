@@ -3,7 +3,7 @@ const { Pool } = require('pg');
 //require('../../.gitignore/node_modules/dotenv/lib/main').config();
 
 
-console.log("check db pw: ", process.env.DB_PASSWORD);
+//console.log("check db pw: ", process.env.DB_PASSWORD);
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
