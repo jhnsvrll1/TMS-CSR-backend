@@ -1,1 +1,1 @@
-SELECT * from assessment_results
+SELECT * FROM users

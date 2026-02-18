@@ -8,15 +8,11 @@ const pool = require ('./src/config/db');
 
 const app = express();
 
-
-
-
 app.use(cors());
 app.use(express.json());
 
 app.use('/api/business', businessRoutes);
 app.use('/api/assessment', assesmentRoutes);
-
 app.get('/', (req, res)=>{
     res.send('server backend jalan')
 });
