@@ -58,6 +58,8 @@ const login = async (req, res) => {
             {expiresIn: '24h'}
         );
 
+        await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [user.id, 'LOGIN']);
+
         res.json({
         success:true,
         message: "Login Berhasil",
@@ -71,6 +73,20 @@ const login = async (req, res) => {
     }
 };
 
+const logout = async (req, res) => {
+    try{
+        const {userId} = req.body;
+
+        if(userId) {
+            await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [user.id, 'LOGOUT']);
+        }
+
+        res.json({success:true, message: "Logout berhasil dicatat"});
+    }catch(error) {
+        console.error("Logout Log Error: ", error);
+        res.status(500).json({success:false, message: "server error"});
+    }
+}
 
 const registerAdmin = async(req, res) => {
  try {
@@ -87,4 +103,4 @@ const registerAdmin = async(req, res) => {
  }
 };
 
-module.exports = {login, registerAdmin};
+module.exports = {login, registerAdmin, logout};
