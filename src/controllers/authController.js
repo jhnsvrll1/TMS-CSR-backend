@@ -1,7 +1,32 @@
 const pool = require('../config/db');
-const bcrypt = require('bcryptjs');
+//const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+//const { text, Buffer } = require('stream/consumers');
 require('dotenv').config();
+
+const algorithm = 'aes-256-cbc';
+const secretKey = process.env.AES_SECRET_KEY;
+
+
+const encrypt = (text) => {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, Buffer.from(secretKey), iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+    return iv.toString('hex') + ':' + encrypted.toString('hex');
+};
+
+const decrypt = (hash) => {
+    const textParts = hash.split(':');
+    const iv = Buffer.from(textParts.shift(), 'hex');
+    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const decipher = crypto.createDecipheriv(algorithm, Buffer.from(secretKey), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+};
 
 const login = async (req, res) => {
     try {
@@ -15,15 +40,22 @@ const login = async (req, res) => {
 
         const user = userRes.rows[0];
 
-        const validPass = await bcrypt.compare(password, user.password);
-        if(!validPass){
-            return res.status(401).json({success:false, message:"Password Salah"});
-        }
+        try {
+            const decryptedPassword = decrypt(user.password);
 
+            if(password !== decryptedPassword){
+                return res.status(401).json({success: false, message: "Incorrect Password"});
+            }
+        }catch (err){
+            return res.status(500).json({success: false, message: 'Decryption Error'});
+
+
+        }
+        // buat generate jwt nya
         const token = jwt.sign(
             {id: user.id, role: user.role, name: user.name},
-            process.env.jwt_SECRET,
-            {expiresIN: '24h'}
+            process.env.JWT_SECRET,
+            {expiresIn: '24h'}
         );
 
         res.json({
@@ -41,5 +73,18 @@ const login = async (req, res) => {
 
 
 const registerAdmin = async(req, res) => {
+ try {
+    const {name, email, password} = req.body;
+    const encryptedPassword = encrypt(password);
 
-}
+    await pool.query(
+        'INSERT INTO users (name, email, password) VALUES ($1, $2, $3)',
+        [name, email, encryptedPassword]
+    );
+    res.json({success:true, message:"Admin Created!"});
+ }catch(err){
+    res.status(500).json({error: err.message})
+ }
+};
+
+module.exports = {login, registerAdmin};

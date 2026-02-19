@@ -68,7 +68,7 @@ const gerProvince = async (req, res) => {
             data: formattedData
         });
     }catch (error) {
-        consolo.error('Error getProvince: ', error);
+        console.error('Error getProvince: ', error);
         res.status(500).json({success: false, error: 'fail retrieving province data!'});
     }
 }

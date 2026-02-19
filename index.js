@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const businessRoutes = require('./src/routes/business-routes');
 const assesmentRoutes = require('./src/routes/assessment-routes');
+const authRoutes = require('./src/routes/auth-routes');
 const cors = require('cors');
 const pool = require ('./src/config/db');
 
@@ -11,6 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use('/api/admin', authRoutes)
 app.use('/api/business', businessRoutes);
 app.use('/api/assessment', assesmentRoutes);
 app.get('/', (req, res)=>{

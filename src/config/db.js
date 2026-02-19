@@ -1,4 +1,4 @@
-require('dotenv').config;
+require('dotenv').config();
 const { Pool } = require('pg');
 //require('../../.gitignore/node_modules/dotenv/lib/main').config();
 
