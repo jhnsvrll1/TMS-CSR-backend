@@ -55,7 +55,7 @@ const login = async (req, res) => {
         const token = jwt.sign(
             {id: user.id, role: user.role, name: user.name},
             process.env.JWT_SECRET,
-            {expiresIn: '24h'}
+            {expiresIn: '5m'}
         );
 
         await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [user.id, 'LOGIN']);
@@ -78,7 +78,7 @@ const logout = async (req, res) => {
         const {userId} = req.body;
 
         if(userId) {
-            await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [user.id, 'LOGOUT']);
+            await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [userId, 'LOGOUT']);
         }
 
         res.json({success:true, message: "Logout berhasil dicatat"});
@@ -87,6 +87,29 @@ const logout = async (req, res) => {
         res.status(500).json({success:false, message: "server error"});
     }
 }
+const refreshToken = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if(!authHeader || !authHeader.starsWith('Bearer')){
+            return res.status(401).json({success:false, message: "There's no Token"});
+        }
+
+        const oldToken = authHeader.split(' ')[1];
+
+        const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
+
+        const newToken = jwt.sign(
+            {id : decoded.id, role: decoded.role, name: decoded.role},
+            process.env.JWT_SECRET,
+            {expiresIn: '5m'}
+        );
+
+        res.json({success:true, token: newToken});
+    }catch(error){
+        return res.status(401).json({success: false, message: "Token Expired"});
+    }
+};
+
 
 const registerAdmin = async(req, res) => {
  try {
@@ -103,4 +126,4 @@ const registerAdmin = async(req, res) => {
  }
 };
 
-module.exports = {login, registerAdmin, logout};
+module.exports = {login, registerAdmin, logout, refreshToken};
