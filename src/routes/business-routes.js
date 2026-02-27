@@ -6,5 +6,6 @@ const businessController = require('../controllers/businessController');
 router.post('/register', businessController.createBusinessProfile); 
 
 router.get('/province', businessController.gerProvince);
+router.get('/companies', businessController.getCompanies);
 
 module.exports = router;

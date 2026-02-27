@@ -73,4 +73,75 @@ const gerProvince = async (req, res) => {
     }
 }
 
-module.exports = {createBusinessProfile, gerProvince};
+const getCompanies = async (req, res) => {
+    try {
+        const { 
+            search = '', 
+            province = '', 
+            page = 1, 
+            limit = 10 
+        } = req.query;
+        let queryText = `
+            SELECT 
+                id, 
+                nama_umkm AS company_name, 
+                provinsi AS province,
+                'Active' AS status, -- (Bisa diubah kalau kamu udah punya kolom status)
+                created_at 
+            FROM business_profiles 
+            WHERE 1=1
+        `;
+        let queryValues = [];
+        let valueIndex = 1;
+        if (search) {
+            queryText += ` AND nama_umkm ILIKE $${valueIndex}`;
+            queryValues.push(`%${search}%`);
+            valueIndex++;
+        }
+
+        if (province && province !== 'All Provinces') {
+            queryText += ` AND provinsi = $${valueIndex}`;
+            queryValues.push(province);
+            valueIndex++;
+        }
+
+        if (search) {
+            queryText += ` AND (nama_umkm ILIKE $${valueIndex} OR kota_kabupaten ILIKE $${valueIndex} OR provinsi ILIKE $${valueIndex})`;
+            queryValues.push(`%${search}%`);
+            valueIndex++;
+        }
+
+        if(province && province !== 'All Provinces') {
+            queryText += ` AND provinsi = $${valueIndex}`;
+            queryValues.push(province);
+            valueIndex++;
+        }
+
+        const countQuery = ` SELECT COUNT(*) FROM (${queryText}) AS total`;
+        const totalResult = await pool.query(countQuery, queryValues);
+        const totalItems = parseInt(totalResult.rows[0].count);
+
+        const offset = (page - 1) * limit;
+        queryText += ` ORDER BY created_at DESC LIMIT $${valueIndex} OFFSET $${valueIndex + 1}`;
+        queryValues.push(limit, offset);
+
+        const result = await pool.query(queryText, queryValues);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                totalItems,
+                totalPages: Math.ceil(totalItems / limit),
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getCompanies:', error);
+        res.status(500).json({ success: false, error: 'Gagal mengambil data perusahaan!' });
+    }
+};
+
+module.exports = {createBusinessProfile, gerProvince, getCompanies};

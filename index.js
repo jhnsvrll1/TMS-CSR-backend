@@ -7,6 +7,8 @@ const assesmentRoutes = require('./src/routes/assessment-routes');
 const authRoutes = require('./src/routes/auth-routes');
 const cmsRoutes = require('./src/routes/cms-routes');
 const masterDataRoutes = require('./src/routes/masterDataRoutes');
+const analyticsRoutes = require('./src/routes/analyticsRoutes');
+const settingRoutes = require('./src/routes/settingsRoutes');
 const cors = require('cors');
 const pool = require ('./src/config/db');
 
@@ -22,6 +24,8 @@ app.use('/api/business', businessRoutes);
 app.use('/api/assessment', assesmentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/master', masterDataRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/settings', settingRoutes);
 app.get('/', (req, res)=>{
     res.send('server backend jalan')
 });
