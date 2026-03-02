@@ -1,5 +1,5 @@
 const pool = require ('../config/db');
-
+//MASTER DATA
 const allowedTables = [
     'provinces', 'legal_entities', 'business_sectors', 'company_sizes', 'industries',
     'financial_statuses', 'revenue_ranges', 'market_scopes', 'market_positions'

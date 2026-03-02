@@ -1,6 +1,6 @@
 const pool = require ('../config/db');
 
-
+//WEBSITE CONTENT
 const getGeneralSettings = async(requestAnimationFrame, res) => {
     try{
         const result = await pool.query('SELECT setting_key, setting_value FROM cms_settings');

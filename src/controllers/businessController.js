@@ -42,7 +42,7 @@ const createBusinessProfile = async (req, res) => {
 
     res.status(201).json({
         success: true,
-        message: 'Profil Bisnis Berhasil Disimpan!',
+        message: 'Business Profile Saved',
         data: result.rows[0]
     });
 
@@ -72,7 +72,7 @@ const gerProvince = async (req, res) => {
         res.status(500).json({success: false, error: 'fail retrieving province data!'});
     }
 }
-
+//COMPANIES PAGE
 const getCompanies = async (req, res) => {
     try {
         const { 
@@ -86,7 +86,7 @@ const getCompanies = async (req, res) => {
                 id, 
                 nama_umkm AS company_name, 
                 provinsi AS province,
-                'Active' AS status, -- (Bisa diubah kalau kamu udah punya kolom status)
+                'Active' AS status,
                 created_at 
             FROM business_profiles 
             WHERE 1=1
@@ -140,7 +140,7 @@ const getCompanies = async (req, res) => {
 
     } catch (error) {
         console.error('Error getCompanies:', error);
-        res.status(500).json({ success: false, error: 'Gagal mengambil data perusahaan!' });
+        res.status(500).json({ success: false, error: 'failed retrieving company data' });
     }
 };
 

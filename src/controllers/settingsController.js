@@ -1,7 +1,7 @@
 const pool = require('../config/db');
 const crypto = require('crypto');
 require('dotenv').config();
-
+//SETTINGS
 
 const algorithm = 'aes-256-cbc';
 const secretKey = process.env.AES_SECRET_KEY;
@@ -31,7 +31,7 @@ const getUsers = async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error("Error getUsers:", error);
-        res.status(500).json({ success: false, message: "Gagal mengambil data users" });
+        res.status(500).json({ success: false, message: "fail retrieving user data" });
     }
 };
 
@@ -44,13 +44,13 @@ const addUser = async (req, res) => {
             'INSERT INTO users (name, email, password, role, status) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, status',
             [name, email, encryptedPassword, role || 'Assessor', status || 'Active']
         );
-        res.status(201).json({ success: true, message: "User berhasil ditambahkan", data: result.rows[0] });
+        res.status(201).json({ success: true, message: "user successfully added", data: result.rows[0] });
     } catch (error) {
         console.error("Error addUser:", error);
         if (error.code === '23505') {
-            return res.status(400).json({ success: false, message: "Email sudah digunakan!" });
+            return res.status(400).json({ success: false, message: "email already used" });
         }
-        res.status(500).json({ success: false, message: "Gagal menambah user" });
+        res.status(500).json({ success: false, message: "failed adding user" });
     }
 };
 
@@ -62,11 +62,11 @@ const updateUser = async (req, res) => {
             'UPDATE users SET name = $1, email = $2, role = $3, status = $4 WHERE id = $5 RETURNING id, name, email, role, status',
             [name, email, role, status, id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
-        res.json({ success: true, message: "User berhasil diupdate", data: result.rows[0] });
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: "user not found" });
+        res.json({ success: true, message: "user updated", data: result.rows[0] });
     } catch (error) {
         console.error("Error updateUser:", error);
-        res.status(500).json({ success: false, message: "Gagal mengupdate user" });
+        res.status(500).json({ success: false, message: "failed updating user" });
     }
 };
 
@@ -74,11 +74,11 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id');
-        if (result.rows.length === 0) return res.status(404).json({ success: false, message: "User tidak ditemukan" });
-        res.json({ success: true, message: "User berhasil dihapus" });
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: "user not found" });
+        res.json({ success: true, message: "User deleted" });
     } catch (error) {
         console.error("Error deleteUser:", error);
-        res.status(500).json({ success: false, message: "Gagal menghapus user" });
+        res.status(500).json({ success: false, message: "failed deleting user" });
     }
 };
 
@@ -107,7 +107,7 @@ const changePassword = async (req, res) => {
             }
         } catch (decryptErr) {
             console.error("Decryption error during change password:", decryptErr);
-            return res.status(500).json({ success: false, message: "Format password lama tidak valid" });
+            return res.status(500).json({ success: false, message: "invalid format for old password" });
         }
 
         const encryptedNewPassword = encrypt(newPassword);

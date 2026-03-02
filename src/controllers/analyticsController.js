@@ -1,6 +1,6 @@
 //const { Activity } = require('react');
 const pool = require ('../config/db');
-
+//DASHBOARD
 const getDashboardSummary = async (req, res) => {
     try {
         const [business, provinces, areas, recent, logs] = await Promise.all ([
