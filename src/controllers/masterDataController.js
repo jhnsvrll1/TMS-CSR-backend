@@ -1,50 +1,102 @@
+const e = require('express');
 const pool = require ('../config/db');
 //MASTER DATA
-const allowedTables = [
+const allowedCategories = [
     'provinces', 'legal_entities', 'business_sectors', 'company_sizes', 'industries',
     'financial_statuses', 'revenue_ranges', 'market_scopes', 'market_positions'
 ];
 
 const getAllData = async (req, res) => {
-    const {table} = req.params;
+    const category = req.params.table;
 
-    if(!allowedTables.includes(table)) {
-        return res.status(400).json({success: false, message: "table name not valid"});
+    if(!allowedCategories.includes(category)) {
+        return res.status(400).json({success: false, message: "category name not valid"});
     }
 
     try {
-        const result = await pool.query(`SELECT * FROM ${table} ORDER BY id ASC`);
+        const result = await pool.query(
+            `SELECT * FROM cms_master_data WHERE category =$1 ORDER BY id ASC`, [category]);
         res.json ({success: true, data: result.rows});
     }catch(error) {
-        console.error(`Error get ${table}`, error);
-        res.status(500).json({success: false, message: `fail taking data from ${table}`});
+        console.error(`Error get ${category}`, error);
+        res.status(500).json({success: false, message: `fail taking data from ${category}`});
     }
 };
 
 const addData = async (req, res) => {
-    const {table} = req.params;
+    const category = req.params.table;
     const { name, description} = req.body;
 
-    if(!allowedTables.includes(table)) {
-        return res.status(400).json({success:false, message: "table name invalid"});
+    if(!allowedCategories.includes(category)) {
+        return res.status(400).json({success:false, message: "category name invalid"});
     }
 
     try {
-        let queryText = `INSERT INTO ${table} (name, description) VALUES ($1,$2) RETURNING *`
-        let queryParams = [name, description];
-
-        if (table === 'provinces') {
-            queryText = `INSERT INTO ${table} (name) VALUES ($1) RETURNING *`;
-            queryParams = [name];
-        }
-
+        let queryText = `INSERT INTO cms_master_data (category, name, description) VALUES ($1,$2, $3) RETURNING *`
+        let queryParams = [category, name, description || null];
 
         const result = await pool.query(queryText, queryParams);
-        res.status(201).json({success:true, message:`Data added to ${table}`, data: result.rows[0]});
+        res.status(201).json({success:true, message:`Data added to ${category}`, data: result.rows[0]});
     }catch(error){
-        console.error(`Error add ${table}`, table);
-        res.status(500).json({success:false, message:`Fail adding data to ${table}`});
+        console.error(`Error add ${category}`, table);
+        res.status(500).json({success:false, message:`Fail adding data to ${category}`});
     }
 };
 
-module.exports = { getAllData, addData}
+const updateData = async (req, res) => {
+    const category = req.params.table;
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if(!allowedCategories.includes(category)) {
+        return res.status(400).json({success: false, message: "Category name invalid"});
+    }
+
+    try {
+        const queryText = `
+        UPDATE cms_master_data
+        SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3 AND CATEGORY = $4
+        RETURNING *
+        `;
+
+        const queryParams = [name, description || null, id, category];
+
+        const result = await pool.query(queryText, queryParams);
+
+        if (result.rows.length === 0){
+            return res.status(404).json({success:false, message: "Data not found"});
+        }
+
+        res.json({success:true, message: "Data updated successfully", data: result.rows[0]});
+    }catch (error) {
+        console.error(`Error update ${category}`, error);
+        res.status(500).json({success: false, message: `Fail updating data in ${category}`});
+    }
+};
+
+
+const deleteData = async(req, res) => {
+    const category = req.params.table;
+    const { id } = req.params;
+
+    if(!allowedCategories.includes(category)){
+        return res.status(400).json({success: false, message: "Category name invallid"});
+    }
+
+    try {
+        const queryText =  `DELETE FROM cms_master_data WHERE id = $1 AND category = $2 RETURNING *`;
+        const result = await pool.query(queryText, [id, category]);
+
+        if(result.rows.length === 0){
+            return res.status(400).json({success:false, message:"Data not found"});
+        }
+
+        res.json({success: true, message: "Data deleted successfully"});
+    }catch(error){
+        console.error(`Error delete ${category}`, error);
+        res.status(500).json({success:false, message: `Fail deleting data from ${category}`});
+    }
+}
+
+module.exports = { getAllData, addData, deleteData, updateData}

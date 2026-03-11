@@ -5,11 +5,15 @@ const verifyToken = (req, res, next)=> {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if(!token) return res.status (401).json({message: 'akses denied'});
-
+    if(!token) {
+        return res.status (401).json({message: 'akses denied'});
+    }
     
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if(err) return res.status(403).json({message: "token invalid"});
+        if(err) {
+            return res.status(401).json({message: "token invalid"});
+        }
+
         req.user = user;
         next();
     });

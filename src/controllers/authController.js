@@ -35,7 +35,7 @@ const login = async (req, res) => {
 
         const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         if (userRes.rows.length === 0){
-            return res.status(401).json({success: false, message:"Email Tidak Terdaftar"});
+            return res.status(401).json({success: false, message:"Email not registered"});
         }
 
         const user = userRes.rows[0];
@@ -62,7 +62,7 @@ const login = async (req, res) => {
 
         res.json({
         success:true,
-        message: "Login Berhasil",
+        message: "Login successful",
         token: token,
         user: {id: user.id, name: user.name, email: user.email}
         });
@@ -81,7 +81,7 @@ const logout = async (req, res) => {
             await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [userId, 'LOGOUT']);
         }
 
-        res.json({success:true, message: "Logout berhasil dicatat"});
+        res.json({success:true, message: "logout logged"});
     }catch(error) {
         console.error("Logout Log Error: ", error);
         res.status(500).json({success:false, message: "server error"});
@@ -90,7 +90,7 @@ const logout = async (req, res) => {
 const refreshToken = async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
-        if(!authHeader || !authHeader.starsWith('Bearer')){
+        if(!authHeader || !authHeader.startsWith('Bearer')){
             return res.status(401).json({success:false, message: "There's no Token"});
         }
 

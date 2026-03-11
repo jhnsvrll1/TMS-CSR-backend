@@ -1,15 +1,15 @@
 const pool = require('../config/db');
 
-const provinceList = [
-  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Jambi", 
-  "Sumatera Selatan", "Bengkulu", "Lampung", "Kepulauan Bangka Belitung", "Kepulauan Riau",
-  "DKI Jakarta", "Jawa Barat", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur", "Banten",
-  "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
-  "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
-  "Sulawesi Utara", "Sulawesi Tengah", "Sulawesi Selatan", "Sulawesi Tenggara", "Gorontalo", "Sulawesi Barat",
-  "Maluku", "Maluku Utara",
-  "Papua Barat", "Papua", "Papua Tengah", "Papua Pegunungan", "Papua Selatan", "Papua Barat Daya"
-];
+// const provinceList = [
+//   "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Jambi", 
+//   "Sumatera Selatan", "Bengkulu", "Lampung", "Kepulauan Bangka Belitung", "Kepulauan Riau",
+//   "DKI Jakarta", "Jawa Barat", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur", "Banten",
+//   "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+//   "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+//   "Sulawesi Utara", "Sulawesi Tengah", "Sulawesi Selatan", "Sulawesi Tenggara", "Gorontalo", "Sulawesi Barat",
+//   "Maluku", "Maluku Utara",
+//   "Papua Barat", "Papua", "Papua Tengah", "Papua Pegunungan", "Papua Selatan", "Papua Barat Daya"
+// ];
 
 const createBusinessProfile = async (req, res) => {
     try {
@@ -56,16 +56,15 @@ const createBusinessProfile = async (req, res) => {
     }
 }
 
-const gerProvince = async (req, res) => {
+const getProvince = async (req, res) => {
     try {
-        const formattedData = provinceList.map((prov,index) => ({
-            id: index + 1,
-            name: prov
-        }));
+        const result = await pool.query(
+            "SELECT id, name FROM cms_master_data WHERE category = 'provinces' AND is_active = true ORDER BY name ASC"
+        );
 
         res.json({
             success: true,
-            data: formattedData
+            data: result.rows
         });
     }catch (error) {
         console.error('Error getProvince: ', error);
@@ -94,24 +93,12 @@ const getCompanies = async (req, res) => {
         let queryValues = [];
         let valueIndex = 1;
         if (search) {
-            queryText += ` AND nama_umkm ILIKE $${valueIndex}`;
-            queryValues.push(`%${search}%`);
-            valueIndex++;
-        }
-
-        if (province && province !== 'All Provinces') {
-            queryText += ` AND provinsi = $${valueIndex}`;
-            queryValues.push(province);
-            valueIndex++;
-        }
-
-        if (search) {
             queryText += ` AND (nama_umkm ILIKE $${valueIndex} OR kota_kabupaten ILIKE $${valueIndex} OR provinsi ILIKE $${valueIndex})`;
             queryValues.push(`%${search}%`);
             valueIndex++;
         }
 
-        if(province && province !== 'All Provinces') {
+        if (province && province !== 'All Provinces') {
             queryText += ` AND provinsi = $${valueIndex}`;
             queryValues.push(province);
             valueIndex++;
@@ -144,4 +131,4 @@ const getCompanies = async (req, res) => {
     }
 };
 
-module.exports = {createBusinessProfile, gerProvince, getCompanies};
+module.exports = {createBusinessProfile, getProvince, getCompanies};
