@@ -15,9 +15,9 @@ const pool = require ('./src/config/db');
 
 
 const app = express();
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/api/admin', authRoutes)
 app.use('/api/cms', cmsRoutes);

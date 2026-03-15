@@ -25,7 +25,7 @@ const getAllData = async (req, res) => {
 
 const addData = async (req, res) => {
     const category = req.params.table;
-    const { name, description} = req.body;
+    const { name, description, code, sequence} = req.body;
 
     if(!allowedCategories.includes(category)) {
         return res.status(400).json({success:false, message: "category name invalid"});
@@ -38,7 +38,7 @@ const addData = async (req, res) => {
         const result = await pool.query(queryText, queryParams);
         res.status(201).json({success:true, message:`Data added to ${category}`, data: result.rows[0]});
     }catch(error){
-        console.error(`Error add ${category}`, table);
+        console.error(`Error add ${category}`, category);
         res.status(500).json({success:false, message:`Fail adding data to ${category}`});
     }
 };
@@ -46,7 +46,7 @@ const addData = async (req, res) => {
 const updateData = async (req, res) => {
     const category = req.params.table;
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description , code, sequence} = req.body;
 
     if(!allowedCategories.includes(category)) {
         return res.status(400).json({success: false, message: "Category name invalid"});
@@ -85,8 +85,7 @@ const deleteData = async(req, res) => {
     }
 
     try {
-        const queryText =  `UPDATE FROM cms_master_data
-         SET is_active = false, updated_at = CURRENT_TIMESTAMP
+        const queryText =  `DELETE FROM cms_master_data
          WHERE id = $1 AND category = $2 RETURNING *`;
         const result = await pool.query(queryText, [id, category]);
 
