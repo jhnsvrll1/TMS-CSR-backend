@@ -1,51 +1,49 @@
 const pool = require('../config/db');
-const { head } = require('../routes/business-routes');
 
+// ==========================================
+// 1. GET QUESTIONS (Tampilan untuk User Form)
+// ==========================================
 const getQuestions = async (req, res) => {
     try {
-        const query = `
-            SELECT 
-                s.id AS section_id,
-                s.title AS section_name,
-                (
-                    SELECT json_agg(
-                        json_build_object(
-                            'sub_section_name', sub.sub_section,
-                            'questions', sub.questions_list
-                        )
-                    )
-                    FROM (
-                        SELECT 
-                            COALESCE(q.sub_section, 'General') as sub_section,
-                            json_agg(
-                                json_build_object(
-                                    'id', q.id,
-                                    'text', q.question_text,
-                                    'options', (
-                                        SELECT json_agg(
-                                            json_build_object(
-                                                'id', o.id,
-                                                'label', o.option_text,
-                                                'score', o.score_value
-                                            )
-                                        ) FROM assessment_options o WHERE o.question_id = q.id
-                                    )
-                                ) ORDER BY q.id ASC
-                            ) AS questions_list
-                        FROM assessment_questions q
-                        WHERE q.section_id = s.id
-                        GROUP BY q.sub_section
-                    ) sub
-                ) AS sub_sections
-            FROM assessment_sections s
-            ORDER BY s.id ASC;
-        `;
+        // Ambil semua data urut berdasarkan sequence
+        const groupsRes = await pool.query('SELECT * FROM assessment_group ORDER BY sequence ASC');
+        const subgroupsRes = await pool.query('SELECT * FROM assessment_subgroup ORDER BY sequence ASC');
+        const categoriesRes = await pool.query('SELECT * FROM assessment_categorie ORDER BY sequence ASC');
+        const questionsRes = await pool.query('SELECT * FROM assessment_question ORDER BY sequence ASC');
+        const optionsRes = await pool.query('SELECT * FROM assessment_option ORDER BY sequence ASC');
 
-        const result = await pool.query(query);
-        
+        const groups = groupsRes.rows;
+        const subgroups = subgroupsRes.rows;
+        const categories = categoriesRes.rows;
+        const questions = questionsRes.rows;
+        const options = optionsRes.rows;
+
+        // Rangkai JSON 5 Level
+        const data = groups.map(group => ({
+            id: group.id,
+            name: group.name,
+            subgroups: subgroups.filter(sub => sub.group_id === group.id).map(sub => ({
+                id: sub.id,
+                name: sub.name,
+                categories: categories.filter(cat => cat.subgroup_id === sub.id).map(cat => ({
+                    id: cat.id,
+                    name: cat.name,
+                    questions: questions.filter(q => q.category_id === cat.id).map(q => ({
+                        id: q.id,
+                        text: q.question_text, 
+                        options: options.filter(opt => opt.question_id === q.id).map(opt => ({
+                            id: opt.id,
+                            label: opt.option_text, 
+                            score: parseFloat(opt.points)
+                        }))
+                    }))
+                }))
+            }))
+        }));
+
         res.json({
             success: true,
-            data: result.rows
+            data: data
         });
 
     } catch (error) {
@@ -54,6 +52,9 @@ const getQuestions = async (req, res) => {
     }
 };
 
+// ==========================================
+// 2. SUBMIT ASSESSMENT (Simpan Jawaban User)
+// ==========================================
 const submitAssessment = async (req, res) => {
     const client = await pool.connect(); 
     try {
@@ -74,13 +75,28 @@ const submitAssessment = async (req, res) => {
         );
         const resultId = resultHeader.rows[0].id;
         
+        let totalScore = 0;
+
+        // Insert semua jawaban ke assessment_user_answer
         for (const answer of answers) {
+            // Cek poin dari tabel master option
+            const optRes = await client.query('SELECT points FROM assessment_option WHERE id = $1', [answer.selected_option_id]);
+            const earnedPoint = optRes.rows.length > 0 ? parseFloat(optRes.rows[0].points) : 0;
+            
+            totalScore += earnedPoint;
+
             await client.query(
-                `INSERT INTO assessment_answers (assessment_result_id, question_id, selected_option_id)
-                 VALUES ($1, $2, $3)`,
-                [resultId, answer.question_id, answer.selected_option_id] 
+                `INSERT INTO assessment_user_answer (result_id, question_id, selected_option_id, earned_point)
+                 VALUES ($1, $2, $3, $4)`,
+                [resultId, answer.question_id, answer.selected_option_id, earnedPoint] 
             );
         }
+
+        // Update total score ke header result
+        await client.query(
+            `UPDATE assessment_results SET total_score = $1 WHERE id = $2`,
+            [totalScore, resultId]
+        );
 
         await client.query('COMMIT');
 
@@ -99,100 +115,14 @@ const submitAssessment = async (req, res) => {
     }
 };
 
-// const getAssessmentResult = async (req, res) => {
-//     try {
-//         const { resultId } = req.params;
-
-//         const query = `
-//             SELECT 
-//                 s.id as section_id,
-//                 s.title AS section_name,
-                
-//                 -- Hitung Skor User saat ini
-//                 COALESCE(SUM(opt.score_value), 0) AS current_score,
-                
-//                 -- Hitung Skor Maksimal (Perbaikan Logic)
-//                 (
-//                     SELECT SUM(max_val) FROM (
-//                         SELECT MAX(score_value) as max_val
-//                         FROM assessment_options ao
-//                         JOIN assessment_questions aq ON ao.question_id = aq.id
-//                         WHERE aq.section_id = s.id
-//                         GROUP BY aq.id
-//                     ) as subquery
-//                 ) AS max_score,
-
-//                 COUNT(ans.id) AS answered_count,
-//                 (SELECT COUNT(*) FROM assessment_questions WHERE section_id = s.id) AS total_questions
-
-//             FROM assessment_sections s
-//             LEFT JOIN assessment_questions q ON s.id = q.section_id
-//             -- Join ke jawaban user
-//             LEFT JOIN assessment_answers ans ON q.id = ans.question_id AND ans.assessment_result_id = $1
-//             LEFT JOIN assessment_options opt ON ans.selected_option_id = opt.id
-//             GROUP BY s.id, s.title
-//             ORDER BY s.id ASC;
-//         `;
-
-//         const result = await pool.query(query, [resultId]);
-
-//         let totalUserScore = 0;
-//         let totalMaxScore = 0;
-
-//         const sectionsData = result.rows.map(row => {
-//             const current = parseInt(row.current_score || 0);
-//             const max = parseInt(row.max_score || 0);
-            
-//             totalUserScore += current;
-//             totalMaxScore += max;
-
-//             const percentage = max > 0 ? Math.round((current / max) * 100) : 0;
-            
-//             let status = 'Perlu Perbaikan';
-//             if (percentage >= 85) status = 'Sangat Baik';
-//             else if (percentage >= 70) status = 'Baik';
-//             else if (percentage >= 50) status = 'Cukup';
-
-//             return {
-//                 ...row,
-//                 percentage,
-//                 status_label: status
-//             };
-//         });
-
-//         const finalPercentage = totalMaxScore > 0 ? Math.round((totalUserScore / totalMaxScore) * 100) : 0;
-//         let finalStatus = 'Perlu Perbaikan';
-//         if (finalPercentage >= 85) finalStatus = 'Sangat Baik';
-//         else if (finalPercentage >= 70) finalStatus = 'Baik';
-//         else if (finalPercentage >= 50) finalStatus = 'Cukup';
-
-//         await pool.query(
-//             `UPDATE assessment_results SET total_score = $1, status = 'Completed' WHERE id = $2`,
-//             [totalUserScore, resultId]
-//         );
-
-//         res.json({
-//             success: true,
-//             data: {
-//                 summary: {
-//                     total_score: totalUserScore,
-//                     max_score: totalMaxScore,
-//                     final_percentage: finalPercentage,
-//                     final_status: finalStatus
-//                 },
-//                 sections: sectionsData
-//             }
-//         });
-
-//     } catch (error) {
-//         console.error('Error getAssessmentResult:', error);
-//         res.status(500).json({ success: false, error: 'Gagal menghitung hasil.' });
-//     }
-// };
+// ==========================================
+// 3. GET RESULT (Kalkulasi Skor)
+// ==========================================
 const getAssessmentResult = async (req, res) => {
     try {
         const { resultId } = req.params;
 
+        // Ambil Header Informasi Perusahaan
         const headerQuery = `
             SELECT 
                 bp.nama_umkm,
@@ -203,7 +133,7 @@ const getAssessmentResult = async (req, res) => {
                 ar.status
             FROM assessment_results ar
             JOIN business_profiles bp ON ar.business_profile_id = bp.id
-            LEFT JOIN industries ind ON bp.industry_id = ind.id
+            LEFT JOIN cms_master_data ind ON bp.industry_id = ind.id AND ind.category = 'industries'
             WHERE ar.id = $1
         `;
 
@@ -215,32 +145,47 @@ const getAssessmentResult = async (req, res) => {
 
         const headerData = headerRes.rows[0];
 
+        // Hitung skor berdasarkan level tertinggi (assessment_group)
         const scoreQuery = `
             SELECT 
-                s.id as section_id,
-                s.title AS section_name,
+                g.id AS section_id,
+                g.name AS section_name,
 
-                COALESCE(SUM(opt.score_value), 0) AS current_score,
+                -- Total skor yang didapat user di grup ini
+                COALESCE(SUM(ans.earned_point), 0) AS current_score,
 
+                -- Total skor maksimal yang BISA didapat di grup ini
                 (
                     SELECT SUM(max_val) FROM (
-                        SELECT MAX(score_value) as max_val
-                        FROM assessment_options ao
-                        JOIN assessment_questions aq ON ao.question_id = aq.id
-                        WHERE aq.section_id = s.id
-                        GROUP BY aq.id
+                        SELECT MAX(o.points) as max_val
+                        FROM assessment_option o
+                        JOIN assessment_question q ON o.question_id = q.id
+                        JOIN assessment_categorie c ON q.category_id = c.id
+                        JOIN assessment_subgroup sg ON c.subgroup_id = sg.id
+                        WHERE sg.group_id = g.id
+                        GROUP BY q.id
                     ) as subquery
-                ) AS max_score,  -- SUDAH DITAMBAH KOMA
+                ) AS max_score,
 
-                COUNT(ans.id) AS answered_count, -- SUDAH DIPERBAIKI (ans.id)
-                (SELECT COUNT(*) FROM assessment_questions WHERE section_id = s.id) AS total_questions -- SUDAH DIPERBAIKI (s.id)
+                -- Total soal yang sudah dijawab
+                COUNT(ans.id) AS answered_count,
+                
+                -- Total soal yang ada di grup ini
+                (
+                    SELECT COUNT(q2.id) 
+                    FROM assessment_question q2
+                    JOIN assessment_categorie c2 ON q2.category_id = c2.id
+                    JOIN assessment_subgroup sg2 ON c2.subgroup_id = sg2.id
+                    WHERE sg2.group_id = g.id
+                ) AS total_questions
 
-            FROM assessment_sections s 
-            LEFT JOIN assessment_questions q ON s.id = q.section_id
-            LEFT JOIN assessment_answers ans ON q.id = ans.question_id AND ans.assessment_result_id = $1
-            LEFT JOIN assessment_options opt ON ans.selected_option_id = opt.id
-            GROUP BY s.id, s.title
-            ORDER BY s.id ASC;
+            FROM assessment_group g
+            LEFT JOIN assessment_subgroup sg ON g.id = sg.group_id
+            LEFT JOIN assessment_categorie c ON sg.id = c.subgroup_id
+            LEFT JOIN assessment_question q ON c.id = q.category_id
+            LEFT JOIN assessment_user_answer ans ON q.id = ans.question_id AND ans.result_id = $1
+            GROUP BY g.id, g.name
+            ORDER BY g.id ASC;
         `;
 
         const result = await pool.query(scoreQuery, [resultId]);
@@ -249,8 +194,8 @@ const getAssessmentResult = async (req, res) => {
         let totalMaxScore = 0;
 
         const sectionsData = result.rows.map(row => {
-            const current = parseInt(row.current_score || 0);
-            const max = parseInt(row.max_score || 0);
+            const current = parseFloat(row.current_score || 0);
+            const max = parseFloat(row.max_score || 0);
             
             totalUserScore += current;
             totalMaxScore += max;
@@ -277,6 +222,7 @@ const getAssessmentResult = async (req, res) => {
         else if (finalPercentage >= 50) finalStatus = 'Baik';
         else if (finalPercentage >= 25) finalStatus = 'Cukup';
 
+        // Update status akhir di DB
         await pool.query(
             `UPDATE assessment_results SET total_score = $1, status = $2 WHERE id = $3`,
             [totalUserScore, finalStatus, resultId]
@@ -307,31 +253,33 @@ const getAssessmentResult = async (req, res) => {
     }
 };
 
+// ==========================================
+// 4. GET ALL RESULTS (Untuk Dashboard Admin)
+// ==========================================
+const getAllResult = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                r.id,
+                b.nama_umkm AS company_name,
+                r.total_score,
+                r.status,
+                r.created_at
+            FROM assessment_results r
+            JOIN business_profiles b ON r.business_profile_id = b.id
+            ORDER BY r.created_at DESC
+        `;
 
-   const getAllResult = async (req, res) => {
-        try {
-            const query = `
-                SELECT 
-                    r.id,
-                    b.nama_umkm AS company_name,
-                    r.total_score,
-                    r.status,
-                    r.created_at
-                FROM assessment_results r
-                JOIN business_profiles b ON r.business_profile_id = b.id
-                ORDER BY r.created_at DESC
-            `;
+        const result = await pool.query(query);
 
-            const result = await pool.query(query);
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error){
+        console.error('ERROR getAllResults', error);
+        res.status(500).json({success:false, error: 'failed retrieving dashboard data'});
+    }
+};
 
-            res.json({
-                success: true,
-                data: result.rows
-            });
-        }catch (error){
-            console.error('ERROR getAllResults', error);
-            res.status(500).json({success:false, error: 'failed retrieving dashboard data'});
-        }
-    };
-
-module.exports = { getQuestions, submitAssessment, getAssessmentResult, getAllResult};
+module.exports = { getQuestions, submitAssessment, getAssessmentResult, getAllResult };

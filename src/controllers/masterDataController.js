@@ -3,7 +3,7 @@ const pool = require ('../config/db');
 //MASTER DATA
 const allowedCategories = [
     'provinces', 'legal_entities', 'business_sectors', 'company_sizes', 'industries',
-    'financial_statuses', 'revenue_ranges', 'market_scopes', 'market_positions'
+    'business_maturities', 'revenue_ranges', 'market_scopes', 'market_positions'
 ];
 
 const getAllData = async (req, res) => {
