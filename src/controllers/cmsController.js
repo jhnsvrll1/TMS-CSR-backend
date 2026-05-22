@@ -1,5 +1,19 @@
 const pool = require('../config/db');
 
+const safeParse = (val) => {
+    if (typeof val !== 'string') return val;
+    try {
+        let parsed = JSON.parse(val);
+        // Jaga-jaga kalau kena double-stringify (string di dalam string)
+        if (typeof parsed === 'string') {
+            try { parsed = JSON.parse(parsed); } catch (e) {}
+        }
+        return parsed;
+    } catch (e) {
+        return val; // Kalau bukan JSON (misal "22" atau "test"), biarkan saja
+    }
+};
+
 // ==========================================================
 // BULK SYNC (Hapus lama, Insert baru)
 // ==========================================================
@@ -71,7 +85,8 @@ const getGeneralSettings = async(req, res) => {
         const result = await pool.query('SELECT setting_key, setting_value FROM cms_settings');
         const settings = {};
         result.rows.forEach(row => {
-            settings[row.setting_key] = row.setting_value;
+            // 🔴 Gunakan helper di sini
+            settings[row.setting_key] = safeParse(row.setting_value);
         });
         res.json({success: true, data: settings});
     }catch (error){
@@ -86,6 +101,11 @@ const updateGeneralSettings = async (req, res) => {
         for (const key in updates) {
             let value = updates[key];
             const sectionName = key.split('_')[0]; 
+            
+            // 🔴 Bungkus Array/Object menjadi string sebelum masuk ke Database
+            if (typeof value === 'object' && value !== null) {
+                value = JSON.stringify(value);
+            }
             
             const check = await pool.query('SELECT setting_key FROM cms_settings WHERE setting_key = $1', [key]);
 
@@ -202,7 +222,9 @@ const getLandingPageData = async (req, res ) => {
     try {
         const setRes = await pool.query('SELECT setting_key, setting_value FROM cms_settings');
         const settings = {};
-        setRes.rows.forEach(row => { settings[row.setting_key] = row.setting_value; });
+        setRes.rows.forEach(row => { 
+            settings[row.setting_key] = safeParse(row.setting_value); 
+        });
 
         const solRes = await pool.query('SELECT * FROM cms_solutions ORDER BY display_order ASC, id ASC');
         const teamRes = await pool.query('SELECT * FROM cms_team_members ORDER BY display_order ASC, id ASC');
