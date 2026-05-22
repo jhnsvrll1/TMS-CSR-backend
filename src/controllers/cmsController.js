@@ -1,16 +1,16 @@
 const pool = require('../config/db');
 
+// 🔴 HELPER AMAN: Hanya parse string yang benar-benar JSON Array / Object (seperti hero_components)
 const safeParse = (val) => {
     if (typeof val !== 'string') return val;
     try {
         let parsed = JSON.parse(val);
-        // Jaga-jaga kalau kena double-stringify (string di dalam string)
         if (typeof parsed === 'string') {
             try { parsed = JSON.parse(parsed); } catch (e) {}
         }
         return parsed;
     } catch (e) {
-        return val; // Kalau bukan JSON (misal "22" atau "test"), biarkan saja
+        return val; // Jika string biasa (seperti teks prefooter/angka "22"), biarkan tetap string
     }
 };
 
@@ -78,14 +78,13 @@ const syncTeamMembers = async (req, res) => {
 };
 
 // ==========================================================
-// WEBSITE CONTENT (SETTINGS)
+// WEBSITE CONTENT (SETTINGS) - AUTO SUPPORT PREFOOTER
 // ==========================================================
 const getGeneralSettings = async(req, res) => {
     try{
         const result = await pool.query('SELECT setting_key, setting_value FROM cms_settings');
         const settings = {};
         result.rows.forEach(row => {
-            // 🔴 Gunakan helper di sini
             settings[row.setting_key] = safeParse(row.setting_value);
         });
         res.json({success: true, data: settings});
@@ -102,7 +101,6 @@ const updateGeneralSettings = async (req, res) => {
             let value = updates[key];
             const sectionName = key.split('_')[0]; 
             
-            // 🔴 Bungkus Array/Object menjadi string sebelum masuk ke Database
             if (typeof value === 'object' && value !== null) {
                 value = JSON.stringify(value);
             }
@@ -216,7 +214,7 @@ const deleteTeamMember = async(req, res) => {
 };
 
 // ==========================================================
-// LANDING PAGE PUBLIC API
+// LANDING PAGE PUBLIC API - AUTO SUPPORT PREFOOTER
 // ==========================================================
 const getLandingPageData = async (req, res ) => {
     try {
