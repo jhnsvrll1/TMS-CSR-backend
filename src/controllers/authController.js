@@ -101,7 +101,7 @@ const refreshToken = async (req, res) => {
         const newToken = jwt.sign(
             {id : decoded.id, role: decoded.role, name: decoded.role},
             process.env.JWT_SECRET,
-            {expiresIn: '5m'}
+            {expiresIn: '5h'}
         );
 
         res.json({success:true, token: newToken});

@@ -33,7 +33,8 @@ const getQuestions = async (req, res) => {
                         options: options.filter(opt => opt.question_id === q.id).map(opt => ({
                             id: opt.id,
                             label: opt.option_text, 
-                            score: parseFloat(opt.points)
+                            score: parseFloat(opt.points),
+                            type: opt.option_type || "" // 🔴 PERBAIKAN: Mengirimkan status tipe agar checkbox di UI tidak reset / tertukar
                         }))
                     }))
                 }))
@@ -103,7 +104,7 @@ const getAssessmentResult = async (req, res) => {
         const scoreQuery = `
             SELECT g.id AS section_id, g.name AS section_name,
                 COALESCE(SUM(ans.earned_point), 0) AS current_score,
-                (SELECT SUM(max_val) FROM (SELECT MAX(o.points) as max_val FROM assessment_option o JOIN assessment_question q ON o.question_id = q.id JOIN assessment_categorie c ON q.category_id = c.id JOIN assessment_subgroup sg ON c.subgroup_id = sg.id WHERE sg.group_id = g.id GROUP BY q.id) as subquery) AS max_score,
+                (SELECT SUM(max_val) FROM (SELECT MAX(o.points) as max_val FROM assessment_option o JOIN assessment_question q ON o.question_id = q.id JOIN assessment_categorie c ON q.category_id = c.id JOIN assessment_subgroup sg ON c.subgroup_id = sg.id WHERE sg.group_id = g.id AND (o.option_type IS NULL OR o.option_type != 'no-point') GROUP BY q.id) as subquery) AS max_score,
                 COUNT(ans.id) AS answered_count,
                 (SELECT COUNT(q2.id) FROM assessment_question q2 JOIN assessment_categorie c2 ON q2.category_id = c2.id JOIN assessment_subgroup sg2 ON c2.subgroup_id = sg2.id WHERE sg2.group_id = g.id) AS total_questions
             FROM assessment_group g
@@ -211,7 +212,7 @@ const deleteCategory = async (req, res) => {
     try {
         await pool.query('DELETE FROM assessment_categorie WHERE id = $1', [req.params.id]);
         res.status(200).json({ success: true, message: "Category deleted!" });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { res.status(500).json({ success: false, message: message.error }); }
 };
 
 // 4. Question
@@ -237,13 +238,21 @@ const deleteQuestion = async (req, res) => {
 // 5. Option (Jawaban & Poin)
 const addOption = async (req, res) => {
     try {
-        const result = await pool.query('INSERT INTO assessment_option (question_id, option_text, points, sequence) VALUES ($1, $2, $3, $4) RETURNING *', [req.body.question_id, req.body.option_text, req.body.points || 0, req.body.sequence || 0]);
+        // 🔴 PERBAIKAN: Menyimpan properti option_type saat opsi dibuat baru
+        const result = await pool.query(
+            'INSERT INTO assessment_option (question_id, option_text, points, sequence, option_type) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
+            [req.body.question_id, req.body.option_text, req.body.points || 0, req.body.sequence || 0, req.body.option_type || '']
+        );
         res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 const updateOption = async (req, res) => {
     try {
-        await pool.query('UPDATE assessment_option SET option_text = $1, points = $2 WHERE id = $3', [req.body.option_text, req.body.points, req.params.id]);
+        // 🔴 PERBAIKAN: Mengupdate properti option_type agar status "no-answer" / "no-point" tersimpan permanen ke database
+        await pool.query(
+            'UPDATE assessment_option SET option_text = $1, points = $2, option_type = $3 WHERE id = $4', 
+            [req.body.option_text, req.body.points, req.body.option_type || '', req.params.id]
+        );
         res.status(200).json({ success: true, message: "Option updated!" });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
