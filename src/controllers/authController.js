@@ -55,7 +55,7 @@ const login = async (req, res) => {
         const token = jwt.sign(
             {id: user.id, role: user.role, name: user.name},
             process.env.JWT_SECRET,
-            {expiresIn: '5m'}
+            {expiresIn: '5h'}
         );
 
         await pool.query('INSERT INTO audit_logs (user_id, action) VALUES ($1, $2)', [user.id, 'LOGIN']);

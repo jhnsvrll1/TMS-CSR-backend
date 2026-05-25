@@ -1,6 +1,5 @@
 const pool = require('../config/db');
 
-// 🔴 HELPER AMAN: Hanya parse string yang benar-benar JSON Array / Object (seperti hero_components)
 const safeParse = (val) => {
     if (typeof val !== 'string') return val;
     try {
@@ -10,34 +9,31 @@ const safeParse = (val) => {
         }
         return parsed;
     } catch (e) {
-        return val; // Jika string biasa (seperti teks prefooter/angka "22"), biarkan tetap string
+        return val;
     }
 };
 
 // ==========================================================
-// BULK SYNC (Hapus lama, Insert baru)
+// BULK SYNC
 // ==========================================================
 const syncSolutions = async (req, res) => {
-    const userId = req.user.id;
     const { solutions } = req.body;
-    
     const client = await pool.connect(); 
     try {
         await client.query('BEGIN'); 
-        await client.query('DELETE FROM cms_solutions WHERE user_id = $1', [userId]);
+        await client.query('DELETE FROM cms_solutions'); // Hapus semua data lama
 
         if (solutions && solutions.length > 0) {
             for (let i = 0; i < solutions.length; i++) {
                 const s = solutions[i];
                 await client.query(
-                    'INSERT INTO cms_solutions(title, description, image_url, display_order, user_id) VALUES ($1, $2, $3, $4, $5)',
-                    [s.title || '', s.description || '', s.image_base64 || '', s.display_order || i + 1, userId]
+                    'INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4)',
+                    [s.title || '', s.description || '', s.image_base64 || '', s.display_order || i + 1]
                 );
             }
         }
-        
         await client.query('COMMIT'); 
-        res.json({ success: true, message: "Solutions successfully synced!" });
+        res.json({ success: true, message: "Solutions synced!" });
     } catch (error) {
         await client.query('ROLLBACK'); 
         console.error("Error syncSolutions:", error);
@@ -48,26 +44,23 @@ const syncSolutions = async (req, res) => {
 };
 
 const syncTeamMembers = async (req, res) => {
-    const userId = req.user.id;
     const { team } = req.body;
-    
     const client = await pool.connect();
     try {
         await client.query('BEGIN'); 
-        await client.query('DELETE FROM cms_team_members WHERE user_id = $1', [userId]);
+        await client.query('DELETE FROM cms_team_members');
 
         if (team && team.length > 0) {
             for (let i = 0; i < team.length; i++) {
                 const t = team[i];
                 await client.query(
-                    'INSERT INTO cms_team_members (name, label, description, image_url, display_order, user_id) VALUES ($1, $2, $3, $4, $5, $6)',
-                    [t.name || '', t.label || '', t.description || '', t.image_base64 || '', t.display_order || i + 1, userId]
+                    'INSERT INTO cms_team_members (name, label, description, image_url, display_order) VALUES ($1, $2, $3, $4, $5)',
+                    [t.name || '', t.label || '', t.description || '', t.image_base64 || '', t.display_order || i + 1]
                 );
             }
         }
-        
         await client.query('COMMIT'); 
-        res.json({ success: true, message: "Team successfully synced!" });
+        res.json({ success: true, message: "Team synced!" });
     } catch (error) {
         await client.query('ROLLBACK'); 
         console.error("Error syncTeam:", error);
@@ -78,7 +71,7 @@ const syncTeamMembers = async (req, res) => {
 };
 
 // ==========================================================
-// WEBSITE CONTENT (SETTINGS) - AUTO SUPPORT PREFOOTER
+// SETTINGS
 // ==========================================================
 const getGeneralSettings = async(req, res) => {
     try{
@@ -89,7 +82,6 @@ const getGeneralSettings = async(req, res) => {
         });
         res.json({success: true, data: settings});
     }catch (error){
-        console.error("Error getGeneralSettings: ", error);
         res.status(500).json({success: false, message: "fail taking cms data"});
     }
 };
@@ -113,58 +105,56 @@ const updateGeneralSettings = async (req, res) => {
                 await pool.query('INSERT INTO cms_settings (section, setting_key, setting_value) VALUES ($1, $2, $3)', [sectionName, key, value]);
             }
         }
-        res.json({ success: true, message: "website content renewed" });
+        res.json({ success: true, message: "CMS settings updated" });
     } catch (error) {
         console.error("error updateGeneralSettings:", error);
-        res.status(500).json({ success: false, message: "failed when renewing cms data" });
+        res.status(500).json({ success: false, message: "failed updating cms" });
     }
 };
 
 // ==========================================================
-// SOLUTIONS & TEAM MEMBERS CRUD (Standard)
+// CRUD (Tanpa user_id karena tidak ada di ERD)
 // ==========================================================
 const getSolutions = async(req, res) => {
     try {
         const result = await pool.query('SELECT * FROM cms_solutions ORDER BY display_order ASC, id ASC');
         res.json({success: true, data: result.rows});
     }catch(error){
-        res.status(500).json({success: false, message: "failed retrieving solutions data"});
+        res.status(500).json({success: false, message: "failed retrieving solutions"});
     }
 };
 
 const addSolution = async(req, res) => {
     const { title, description, image_base64, display_order} = req.body;
-    const userId = req.user.id;
     try{
-        const result = await pool.query('INSERT INTO cms_solutions(title, description, image_url, display_order, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *', [title, description, image_base64, display_order || 0, userId]);
-        res.status(201).json({success: true, message: "solution added", data: result.rows[0]});
+        const result = await pool.query('INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4) RETURNING *', 
+        [title, description, image_base64, display_order || 0]);
+        res.status(201).json({success: true, message: "added", data: result.rows[0]});
     }catch(error){
-        res.status(500).json({success: false, message:"failed when adding solutions"});
+        res.status(500).json({success: false, message:"failed adding solution"});
     }
 };
 
 const updateSolution = async(req, res)=>{
     const {id} = req.params;
     const { title, description, image_base64, display_order} = req.body;
-    const userId = req.user.id;
     try{
-        const result = await pool.query('UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4 WHERE id = $5 AND user_id = $6 RETURNING *', [title, description, image_base64, display_order, id, userId]);
-        if (result.rows.length === 0) return res.status(404).json({success: false, message: " Solution not found" });
-        res.json({success:true, message: "Solution Updated", data: result.rows[0]});
+        const result = await pool.query('UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4 WHERE id = $5 RETURNING *', 
+        [title, description, image_base64, display_order, id]);
+        if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
+        res.json({success:true, message: "updated", data: result.rows[0]});
     }catch(error){
-        res.status(500).json({ success: false, message: "failed updating solution"});
+        res.status(500).json({ success: false, message: "failed updating"});
     }
 };
 
 const deleteSolution = async (req, res) => {
     const {id} = req.params;
-    const userId = req.user.id;
     try {
-        const result = await pool.query('DELETE FROM cms_solutions WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
-        if (result.rows.length === 0) return res.status(404).json({success: false, message: "solution not found"});
-        res.json({success: true, message: 'solution successfully deleted'});
+        await pool.query('DELETE FROM cms_solutions WHERE id = $1', [id]);
+        res.json({success: true, message: 'deleted'});
     }catch(error){
-        res.status(500).json({success: false, message: "Failed Deleting Solution"});
+        res.status(500).json({success: false, message: "failed deleting"});
     }
 };
 
@@ -173,49 +163,44 @@ const getTeamMembers = async (req, res) => {
         const result = await pool.query ('SELECT * FROM cms_team_members ORDER BY display_order ASC, id ASC');
         res.json({success: true, data: result.rows});
     }catch(error){
-        res.status(500).json({success: false, message: "failed retrieving team data"});
+        res.status(500).json({success: false, message: "failed retrieving team"});
     }
 };
 
 const addTeamMember = async(req, res) => {
-    const userId = req.user.id;
     const { name, label, description, image_base64, display_order } = req.body;
     try {
-        const result = await pool.query('INSERT INTO cms_team_members (name, label, description, image_url, display_order, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [name, label, description, image_base64, display_order || 0, userId]);
-        res.status(201).json({success:true, message: "Team Members Added"});
+        const result = await pool.query('INSERT INTO cms_team_members (name, label, description, image_url, display_order) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
+        [name, label, description, image_base64, display_order || 0]);
+        res.status(201).json({success:true, message: "added"});
     }catch(error){
-        res.status(500).json({success: false, message: " failed adding team member"});
+        res.status(500).json({success: false, message: "failed adding team"});
     }
 };
 
 const updateTeamMember = async (req, res) => {
-    const userId = req.user.id;
     const {id } = req.params;
     const { name, label, description, image_base64, display_order } = req.body;
     try {
-        const result = await pool.query('UPDATE cms_team_members SET name = $1, label = $2, description = $3, image_url = $4, display_order = $5 WHERE id = $6 AND user_id = $7 RETURNING *', [name, label, description, image_base64, display_order, id, userId]);
-        if(result.rows.length === 0) return res.status(404).json({success: false, message: "no data found"});
-        res.json({success: true, message:"team updated", data: result.rows});
+        const result = await pool.query('UPDATE cms_team_members SET name = $1, label = $2, description = $3, image_url = $4, display_order = $5 WHERE id = $6 RETURNING *', 
+        [name, label, description, image_base64, display_order, id]);
+        if(result.rows.length === 0) return res.status(404).json({success: false, message: "not found"});
+        res.json({success: true, message:"updated", data: result.rows[0]});
     }catch(error){
-        res.status(500).json({success: false, message: "failed updating team"});
+        res.status(500).json({success: false, message: "failed updating"});
     }
 };
 
 const deleteTeamMember = async(req, res) => {
     const {id} = req.params;
-    const userId = req.user.id;
     try{
-        const result = await pool.query ('DELETE FROM cms_team_members WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
-        if (result.rows.length === 0) return res.status(404).json({success: false, message: "member not found "});
-        res.json({success: true, message: "member deleted"});
+        await pool.query ('DELETE FROM cms_team_members WHERE id = $1', [id]);
+        res.json({success: true, message: "deleted"});
     }catch(error){
-        res.status(500).json({success: false, message: "failed when deleting member"});
+        res.status(500).json({success: false, message: "failed deleting"});
     }
 };
 
-// ==========================================================
-// LANDING PAGE PUBLIC API - AUTO SUPPORT PREFOOTER
-// ==========================================================
 const getLandingPageData = async (req, res ) => {
     try {
         const setRes = await pool.query('SELECT setting_key, setting_value FROM cms_settings');
@@ -233,7 +218,7 @@ const getLandingPageData = async (req, res ) => {
         });
     } catch (error){
         console.error("Error getlandingpage:", error);
-        res.status(500).json({success:false, message: "failed Fetching Landing Page Data"})
+        res.status(500).json({success:false, message: "failed fetching data"})
     }
 }
 
