@@ -21,14 +21,15 @@ const syncSolutions = async (req, res) => {
     const client = await pool.connect(); 
     try {
         await client.query('BEGIN'); 
-        await client.query('DELETE FROM cms_solutions'); // Hapus semua data lama
+        await client.query('DELETE FROM cms_solutions'); 
 
         if (solutions && solutions.length > 0) {
             for (let i = 0; i < solutions.length; i++) {
                 const s = solutions[i];
+                // 🔴 Menambahkan kolom 'icon' dan parameternya
                 await client.query(
-                    'INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4)',
-                    [s.title || '', s.description || '', s.image_base64 || '', s.display_order || i + 1]
+                    'INSERT INTO cms_solutions(title, description, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5)',
+                    [s.title || '', s.description || '', s.image_base64 || '', s.display_order || i + 1, s.icon || '']
                 );
             }
         }
@@ -43,6 +44,37 @@ const syncSolutions = async (req, res) => {
     }
 };
 
+// ===============
+// CRUD FOR Icons
+// ================
+const addSolution = async(req, res) => {
+    const { title, description, image_base64, display_order, icon } = req.body;
+    try{
+        const result = await pool.query(
+            'INSERT INTO cms_solutions(title, description, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
+            [title, description, image_base64, display_order || 0, icon || '']
+        );
+        res.status(201).json({success: true, message: "added", data: result.rows[0]});
+    }catch(error){
+        res.status(500).json({success: false, message:"failed adding solution"});
+    }
+};
+
+const updateSolution = async(req, res)=>{
+    const {id} = req.params;
+    const { title, description, image_base64, display_order, icon } = req.body;
+    try{
+        const result = await pool.query(
+            'UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4, icon = $5 WHERE id = $6 RETURNING *', 
+            [title, description, image_base64, display_order, icon || '', id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
+        res.json({success:true, message: "updated", data: result.rows[0]});
+    }catch(error){
+        res.status(500).json({ success: false, message: "failed updating"});
+    }
+};
+
 const syncTeamMembers = async (req, res) => {
     const { team } = req.body;
     const client = await pool.connect();
@@ -54,8 +86,15 @@ const syncTeamMembers = async (req, res) => {
             for (let i = 0; i < team.length; i++) {
                 const t = team[i];
                 await client.query(
-                    'INSERT INTO cms_team_members (name, label, description, image_url, display_order) VALUES ($1, $2, $3, $4, $5)',
-                    [t.name || '', t.label || '', t.description || '', t.image_base64 || '', t.display_order || i + 1]
+                  'INSERT INTO cms_team_members (name, title, description, image_url, display_order, label) VALUES ($1, $2, $3, $4, $5, $6)',
+                    [
+                        t.name || '', 
+                        t.position || '',
+                        t.description || '', 
+                        t.image_base64 || '', 
+                        t.display_order || i + 1,
+                        t.labelName || '' 
+                    ]
                 );
             }
         }
@@ -124,29 +163,29 @@ const getSolutions = async(req, res) => {
     }
 };
 
-const addSolution = async(req, res) => {
-    const { title, description, image_base64, display_order} = req.body;
-    try{
-        const result = await pool.query('INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4) RETURNING *', 
-        [title, description, image_base64, display_order || 0]);
-        res.status(201).json({success: true, message: "added", data: result.rows[0]});
-    }catch(error){
-        res.status(500).json({success: false, message:"failed adding solution"});
-    }
-};
+// const addSolution = async(req, res) => {
+//     const { title, description, image_base64, display_order} = req.body;
+//     try{
+//         const result = await pool.query('INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4) RETURNING *', 
+//         [title, description, image_base64, display_order || 0]);
+//         res.status(201).json({success: true, message: "added", data: result.rows[0]});
+//     }catch(error){
+//         res.status(500).json({success: false, message:"failed adding solution"});
+//     }
+// };
 
-const updateSolution = async(req, res)=>{
-    const {id} = req.params;
-    const { title, description, image_base64, display_order} = req.body;
-    try{
-        const result = await pool.query('UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4 WHERE id = $5 RETURNING *', 
-        [title, description, image_base64, display_order, id]);
-        if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
-        res.json({success:true, message: "updated", data: result.rows[0]});
-    }catch(error){
-        res.status(500).json({ success: false, message: "failed updating"});
-    }
-};
+// const updateSolution = async(req, res)=>{
+//     const {id} = req.params;
+//     const { title, description, image_base64, display_order} = req.body;
+//     try{
+//         const result = await pool.query('UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4 WHERE id = $5 RETURNING *', 
+//         [title, description, image_base64, display_order, id]);
+//         if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
+//         res.json({success:true, message: "updated", data: result.rows[0]});
+//     }catch(error){
+//         res.status(500).json({ success: false, message: "failed updating"});
+//     }
+// };
 
 const deleteSolution = async (req, res) => {
     const {id} = req.params;
