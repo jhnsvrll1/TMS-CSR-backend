@@ -26,10 +26,18 @@ const syncSolutions = async (req, res) => {
         if (solutions && solutions.length > 0) {
             for (let i = 0; i < solutions.length; i++) {
                 const s = solutions[i];
-                // 🔴 Menambahkan kolom 'icon' dan parameternya
+                // 🔴 Update: Memasukkan data ke kolom _en dan _id
                 await client.query(
-                    'INSERT INTO cms_solutions(title, description, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5)',
-                    [s.title || '', s.description || '', s.image_base64 || '', s.display_order || i + 1, s.icon || '']
+                    'INSERT INTO cms_solutions(title_en, title_id, description_en, description_id, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                    [
+                        s.title_en || '', 
+                        s.title_id || '', 
+                        s.description_en || '', 
+                        s.description_id || '', 
+                        s.image_base64 || '', 
+                        s.display_order || i + 1, 
+                        s.icon || ''
+                    ]
                 );
             }
         }
@@ -44,37 +52,6 @@ const syncSolutions = async (req, res) => {
     }
 };
 
-// ===============
-// CRUD FOR Icons
-// ================
-const addSolution = async(req, res) => {
-    const { title, description, image_base64, display_order, icon } = req.body;
-    try{
-        const result = await pool.query(
-            'INSERT INTO cms_solutions(title, description, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
-            [title, description, image_base64, display_order || 0, icon || '']
-        );
-        res.status(201).json({success: true, message: "added", data: result.rows[0]});
-    }catch(error){
-        res.status(500).json({success: false, message:"failed adding solution"});
-    }
-};
-
-const updateSolution = async(req, res)=>{
-    const {id} = req.params;
-    const { title, description, image_base64, display_order, icon } = req.body;
-    try{
-        const result = await pool.query(
-            'UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4, icon = $5 WHERE id = $6 RETURNING *', 
-            [title, description, image_base64, display_order, icon || '', id]
-        );
-        if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
-        res.json({success:true, message: "updated", data: result.rows[0]});
-    }catch(error){
-        res.status(500).json({ success: false, message: "failed updating"});
-    }
-};
-
 const syncTeamMembers = async (req, res) => {
     const { team } = req.body;
     const client = await pool.connect();
@@ -86,14 +63,16 @@ const syncTeamMembers = async (req, res) => {
             for (let i = 0; i < team.length; i++) {
                 const t = team[i];
                 await client.query(
-                  'INSERT INTO cms_team_members (name, title, description, image_url, display_order, label) VALUES ($1, $2, $3, $4, $5, $6)',
+                  'INSERT INTO cms_team_members (name, title_en, title_id, description_en, description_id, image_url, display_order, label) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
                     [
                         t.name || '', 
-                        t.position || '',
-                        t.description || '', 
+                        t.title_en || t.position_en || '', 
+                        t.title_id || t.position_id || '',
+                        t.description_en || '', 
+                        t.description_id || '', 
                         t.image_base64 || '', 
                         t.display_order || i + 1,
-                        t.labelName || '' 
+                        t.labelName || t.label || '' 
                     ]
                 );
             }
@@ -102,6 +81,7 @@ const syncTeamMembers = async (req, res) => {
         res.json({ success: true, message: "Team synced!" });
     } catch (error) {
         await client.query('ROLLBACK'); 
+        // Ini yang bikin error 500 tadi
         console.error("Error syncTeam:", error);
         res.status(500).json({ success: false, message: "Failed syncing team" });
     } finally {
@@ -110,7 +90,108 @@ const syncTeamMembers = async (req, res) => {
 };
 
 // ==========================================================
-// SETTINGS
+// CRUD FOR Solutions & Team
+// ==========================================================
+const addSolution = async(req, res) => {
+    const { title_en, title_id, description_en, description_id, image_base64, display_order, icon } = req.body;
+    try{
+        const result = await pool.query(
+            'INSERT INTO cms_solutions(title_en, title_id, description_en, description_id, image_url, display_order, icon) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', 
+            [title_en, title_id, description_en, description_id, image_base64, display_order || 0, icon || '']
+        );
+        res.status(201).json({success: true, message: "added", data: result.rows[0]});
+    }catch(error){
+        res.status(500).json({success: false, message:"failed adding solution"});
+    }
+};
+
+const updateSolution = async(req, res)=>{
+    const {id} = req.params;
+    const { title_en, title_id, description_en, description_id, image_base64, display_order, icon } = req.body;
+    try{
+        const result = await pool.query(
+            'UPDATE cms_solutions SET title_en = $1, title_id = $2, description_en = $3, description_id = $4, image_url = $5, display_order = $6, icon = $7 WHERE id = $8 RETURNING *', 
+            [title_en, title_id, description_en, description_id, image_base64, display_order, icon || '', id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
+        res.json({success:true, message: "updated", data: result.rows[0]});
+    }catch(error){
+        res.status(500).json({ success: false, message: "failed updating"});
+    }
+};
+
+const deleteSolution = async (req, res) => {
+    const {id} = req.params;
+    try {
+        await pool.query('DELETE FROM cms_solutions WHERE id = $1', [id]);
+        res.json({success: true, message: 'deleted'});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed deleting"});
+    }
+};
+
+const getTeamMembers = async (req, res) => {
+    try {
+        // SELECT * aman karena akan otomatis menarik kolom _en dan _id yang baru
+        const result = await pool.query ('SELECT * FROM cms_team_members ORDER BY display_order ASC, id ASC');
+        res.json({success: true, data: result.rows});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed retrieving team"});
+    }
+};
+
+const addTeamMember = async(req, res) => {
+    // 🔴 Update: Menangkap payload bilingual
+    const { name, label, position_en, position_id, description_en, description_id, image_base64, display_order } = req.body;
+    try {
+        const result = await pool.query(
+            'INSERT INTO cms_team_members (name, label, position_en, position_id, description_en, description_id, image_url, display_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', 
+            [name, label, position_en, position_id, description_en, description_id, image_base64, display_order || 0]
+        );
+        res.status(201).json({success:true, message: "added"});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed adding team"});
+    }
+};
+
+const updateTeamMember = async (req, res) => {
+    const {id } = req.params;
+    // 🔴 Update: Menangkap payload bilingual
+    const { name, label, position_en, position_id, description_en, description_id, image_base64, display_order } = req.body;
+    try {
+        const result = await pool.query(
+            'UPDATE cms_team_members SET name = $1, label = $2, position_en = $3, position_id = $4, description_en = $5, description_id = $6, image_url = $7, display_order = $8 WHERE id = $9 RETURNING *', 
+            [name, label, position_en, position_id, description_en, description_id, image_base64, display_order, id]
+        );
+        if(result.rows.length === 0) return res.status(404).json({success: false, message: "not found"});
+        res.json({success: true, message:"updated", data: result.rows[0]});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed updating"});
+    }
+};
+
+const deleteTeamMember = async(req, res) => {
+    const {id} = req.params;
+    try{
+        await pool.query ('DELETE FROM cms_team_members WHERE id = $1', [id]);
+        res.json({success: true, message: "deleted"});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed deleting"});
+    }
+};
+
+const getSolutions = async(req, res) => {
+    try {
+        // SELECT * aman
+        const result = await pool.query('SELECT * FROM cms_solutions ORDER BY display_order ASC, id ASC');
+        res.json({success: true, data: result.rows});
+    }catch(error){
+        res.status(500).json({success: false, message: "failed retrieving solutions"});
+    }
+};
+
+// ==========================================================
+// SETTINGS (Tidak perlu diubah karena memakai sistem Key-Value)
 // ==========================================================
 const getGeneralSettings = async(req, res) => {
     try{
@@ -151,95 +232,6 @@ const updateGeneralSettings = async (req, res) => {
     }
 };
 
-// ==========================================================
-// CRUD (Tanpa user_id karena tidak ada di ERD)
-// ==========================================================
-const getSolutions = async(req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM cms_solutions ORDER BY display_order ASC, id ASC');
-        res.json({success: true, data: result.rows});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed retrieving solutions"});
-    }
-};
-
-// const addSolution = async(req, res) => {
-//     const { title, description, image_base64, display_order} = req.body;
-//     try{
-//         const result = await pool.query('INSERT INTO cms_solutions(title, description, image_url, display_order) VALUES ($1, $2, $3, $4) RETURNING *', 
-//         [title, description, image_base64, display_order || 0]);
-//         res.status(201).json({success: true, message: "added", data: result.rows[0]});
-//     }catch(error){
-//         res.status(500).json({success: false, message:"failed adding solution"});
-//     }
-// };
-
-// const updateSolution = async(req, res)=>{
-//     const {id} = req.params;
-//     const { title, description, image_base64, display_order} = req.body;
-//     try{
-//         const result = await pool.query('UPDATE cms_solutions SET title = $1, description = $2, image_url = $3, display_order = $4 WHERE id = $5 RETURNING *', 
-//         [title, description, image_base64, display_order, id]);
-//         if (result.rows.length === 0) return res.status(404).json({success: false, message: "not found" });
-//         res.json({success:true, message: "updated", data: result.rows[0]});
-//     }catch(error){
-//         res.status(500).json({ success: false, message: "failed updating"});
-//     }
-// };
-
-const deleteSolution = async (req, res) => {
-    const {id} = req.params;
-    try {
-        await pool.query('DELETE FROM cms_solutions WHERE id = $1', [id]);
-        res.json({success: true, message: 'deleted'});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed deleting"});
-    }
-};
-
-const getTeamMembers = async (req, res) => {
-    try {
-        const result = await pool.query ('SELECT * FROM cms_team_members ORDER BY display_order ASC, id ASC');
-        res.json({success: true, data: result.rows});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed retrieving team"});
-    }
-};
-
-const addTeamMember = async(req, res) => {
-    const { name, label, description, image_base64, display_order } = req.body;
-    try {
-        const result = await pool.query('INSERT INTO cms_team_members (name, label, description, image_url, display_order) VALUES ($1, $2, $3, $4, $5) RETURNING *', 
-        [name, label, description, image_base64, display_order || 0]);
-        res.status(201).json({success:true, message: "added"});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed adding team"});
-    }
-};
-
-const updateTeamMember = async (req, res) => {
-    const {id } = req.params;
-    const { name, label, description, image_base64, display_order } = req.body;
-    try {
-        const result = await pool.query('UPDATE cms_team_members SET name = $1, label = $2, description = $3, image_url = $4, display_order = $5 WHERE id = $6 RETURNING *', 
-        [name, label, description, image_base64, display_order, id]);
-        if(result.rows.length === 0) return res.status(404).json({success: false, message: "not found"});
-        res.json({success: true, message:"updated", data: result.rows[0]});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed updating"});
-    }
-};
-
-const deleteTeamMember = async(req, res) => {
-    const {id} = req.params;
-    try{
-        await pool.query ('DELETE FROM cms_team_members WHERE id = $1', [id]);
-        res.json({success: true, message: "deleted"});
-    }catch(error){
-        res.status(500).json({success: false, message: "failed deleting"});
-    }
-};
-
 const getLandingPageData = async (req, res ) => {
     try {
         const setRes = await pool.query('SELECT setting_key, setting_value FROM cms_settings');
@@ -248,6 +240,7 @@ const getLandingPageData = async (req, res ) => {
             settings[row.setting_key] = safeParse(row.setting_value); 
         });
 
+        // SELECT * otomatis akan membawa kolom _en dan _id ke Frontend
         const solRes = await pool.query('SELECT * FROM cms_solutions ORDER BY display_order ASC, id ASC');
         const teamRes = await pool.query('SELECT * FROM cms_team_members ORDER BY display_order ASC, id ASC');
 
